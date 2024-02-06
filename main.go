@@ -1,9 +1,14 @@
 package main
 
 import (
+	d "alura_store/database"
 	m "alura_store/models"
 	u "alura_store/utils"
+	"database/sql"
+	"fmt"
+	_ "github.com/lib/pq"
 	"net/http"
+	"os"
 	"text/template"
 )
 
@@ -16,28 +21,38 @@ func main() {
 }
 
 func index(w http.ResponseWriter, _ *http.Request) {
-	products := []m.Product{
-		{
-			Name:        "Apple MacBook Pro 17",
-			Description: "Silver",
-			Price:       2999.99,
-			Quantity:    120,
-			Edit:        true,
-		},
-		{
-			Name:        "Magic Mouse 2",
-			Description: "Black",
-			Price:       99.99,
-			Quantity:    3,
-		},
-		{
-			Name:        "Google Pixel Phone",
-			Description: "Gray",
-			Price:       799,
-			Quantity:    43,
-		},
-	}
+	db := d.ConnectWithDatabase()
 
+	selectAllProducts, errorQuery := db.Query("SELECT * FROM tbl_products")
+	u.Check(errorQuery)
+
+	p := m.Product{}
+	var products []m.Product
+
+	for selectAllProducts.Next() {
+		var id, quantity int
+		var name, description string
+		var price float64
+		var edit bool
+
+		errorQuery = selectAllProducts.Scan(&id, &name, &description, &price, &quantity, &edit)
+		u.Check(errorQuery)
+
+		p.Name = name
+		p.Price = price
+		p.Edit = edit
+		p.Description = description
+		p.Quantity = quantity
+
+		products = append(products, p)
+	}
 	err := temp.ExecuteTemplate(w, "Index", products)
 	u.Check(err)
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(-1)
+		}
+	}(db)
 }
